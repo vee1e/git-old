@@ -31,15 +31,15 @@
   };
 
   const sizeClasses = {
-    default: 'h-10 px-4 py-2',
-    sm: 'h-9 px-3',
-    lg: 'h-11 px-8'
+    default: 'h-8 px-3 py-1 text-sm',
+    sm: 'h-7 px-2 text-xs',
+    lg: 'h-9 px-4 text-base'
   };
 </script>
 
 <button
   class={cn(
-    'inline-flex items-center justify-center rounded-md font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:pointer-events-none disabled:opacity-50',
+    'inline-flex items-center justify-center rounded-md font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:pointer-events-none disabled:opacity-50 whitespace-nowrap',
     variantClasses[variant],
     sizeClasses[size],
     className

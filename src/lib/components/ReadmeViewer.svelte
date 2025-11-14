@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { marked } from 'marked';
   import hljs from 'highlight.js';
   import mermaid from 'mermaid';
@@ -125,9 +125,10 @@
         'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'img', 'hr',
         'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'span', 'del',
-        'sub', 'sup'
+        'sub', 'sup', 'center', 'figure', 'figcaption', 'section',
+        'article', 'header', 'footer', 'nav', 'aside', 'main'
       ],
-      ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id', 'target', 'rel'],
+      ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id', 'target', 'rel', 'style', 'align', 'width', 'height'],
       ALLOW_DATA_ATTR: false,
       KEEP_CONTENT: true,
       FORBID_ATTR: []
@@ -173,6 +174,151 @@
     });
   }
 
+  function wrapBadgeParagraphs() {
+    if (!container) return;
+    
+    const centerTags = Array.from(container.querySelectorAll('center:not([data-badge-processed])'));
+    
+    if (centerTags.length === 0) {
+      const allParagraphs = Array.from(container.querySelectorAll('p:not([data-badge-processed])'));
+      
+      allParagraphs.forEach((p) => {
+        const hasAlignCenter = p.getAttribute('align') === 'center';
+        if (hasAlignCenter) {
+          p.setAttribute('data-badge-processed', 'true');
+          return;
+        }
+        
+        const hasImg = p.querySelector('img');
+        const imgCount = p.querySelectorAll('img').length;
+        const textContent = p.textContent?.trim() || '';
+        const hasOnlyImages = hasImg && textContent === '' && imgCount > 1;
+        
+        if (hasOnlyImages || (hasImg && imgCount > 1 && textContent.length < 50)) {
+          if (p instanceof HTMLElement) {
+            const computedDisplay = window.getComputedStyle(p).display;
+            if (computedDisplay === 'flex') {
+              p.setAttribute('data-badge-processed', 'true');
+              return;
+            }
+            
+            p.style.setProperty('display', 'flex', 'important');
+            p.style.setProperty('flex-wrap', 'wrap', 'important');
+            p.style.setProperty('justify-content', 'center', 'important');
+            p.style.setProperty('gap', '0.5rem', 'important');
+            p.style.setProperty('align-items', 'center', 'important');
+            p.style.setProperty('margin-bottom', '1rem', 'important');
+            p.style.setProperty('flex-direction', 'row', 'important');
+            
+            const children = Array.from(p.children);
+            children.forEach((child) => {
+              if (child instanceof HTMLElement) {
+                child.style.setProperty('margin', '0', 'important');
+                child.style.setProperty('flex-shrink', '0', 'important');
+              }
+            });
+            
+            p.setAttribute('data-badge-processed', 'true');
+          }
+        } else {
+          p.setAttribute('data-badge-processed', 'true');
+        }
+      });
+    }
+    
+    centerTags.forEach((center) => {
+      if (center instanceof HTMLElement) {
+        const computedDisplay = window.getComputedStyle(center).display;
+        if (computedDisplay === 'flex') {
+          center.setAttribute('data-badge-processed', 'true');
+          return;
+        }
+        
+        center.style.setProperty('display', 'flex', 'important');
+        center.style.setProperty('flex-wrap', 'wrap', 'important');
+        center.style.setProperty('justify-content', 'center', 'important');
+        center.style.setProperty('gap', '0.5rem', 'important');
+        center.style.setProperty('align-items', 'center', 'important');
+        center.style.setProperty('margin-bottom', '1rem', 'important');
+        center.style.setProperty('flex-direction', 'row', 'important');
+        center.style.setProperty('width', '100%', 'important');
+        
+        const allChildren = Array.from(center.children);
+        allChildren.forEach((child) => {
+          if (child instanceof HTMLElement) {
+            child.style.setProperty('margin', '0', 'important');
+            child.style.setProperty('flex-shrink', '0', 'important');
+            child.style.setProperty('width', 'auto', 'important');
+            child.style.setProperty('max-width', 'none', 'important');
+            if (child.tagName === 'P') {
+              child.style.setProperty('display', 'block', 'important');
+            }
+          }
+        });
+        
+        center.setAttribute('data-badge-processed', 'true');
+      }
+    });
+    
+    const paragraphs = Array.from(container.querySelectorAll('p'));
+    let currentGroup: HTMLParagraphElement[] = [];
+    
+    paragraphs.forEach((p) => {
+      if (p.closest('center')) return;
+      
+      const hasOnlyImage = p.children.length === 1 && 
+        (p.querySelector('img') || p.querySelector('a > img'));
+      const hasOnlyLinkWithImage = p.children.length === 1 && 
+        p.querySelector('a') && p.querySelector('a > img');
+      const textContent = p.textContent?.trim() || '';
+      
+      if (hasOnlyImage || hasOnlyLinkWithImage || (textContent === '' && p.querySelector('img'))) {
+        currentGroup.push(p);
+      } else {
+        if (currentGroup.length > 1) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'badge-group';
+          wrapper.style.display = 'flex';
+          wrapper.style.flexWrap = 'wrap';
+          wrapper.style.gap = '0.5rem';
+          wrapper.style.alignItems = 'center';
+          wrapper.style.marginBottom = '1rem';
+          
+          const firstP = currentGroup[0];
+          firstP.parentNode?.insertBefore(wrapper, firstP);
+          
+          currentGroup.forEach((badgeP) => {
+            badgeP.style.display = 'inline-block';
+            badgeP.style.margin = '0';
+            badgeP.style.marginBottom = '0';
+            wrapper.appendChild(badgeP);
+          });
+        }
+        currentGroup = [];
+      }
+    });
+    
+    if (currentGroup.length > 1) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'badge-group';
+      wrapper.style.display = 'flex';
+      wrapper.style.flexWrap = 'wrap';
+      wrapper.style.gap = '0.5rem';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.marginBottom = '1rem';
+      
+      const firstP = currentGroup[0];
+      firstP.parentNode?.insertBefore(wrapper, firstP);
+      
+      currentGroup.forEach((badgeP) => {
+        badgeP.style.display = 'inline-block';
+        badgeP.style.margin = '0';
+        badgeP.style.marginBottom = '0';
+        wrapper.appendChild(badgeP);
+      });
+    }
+  }
+
   function renderMath() {
     if (typeof window === 'undefined' || !window.MathJax) return;
 
@@ -182,13 +328,49 @@
     }
   }
 
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   $effect(() => {
     if (readmeContent && open) {
       renderedHtml = renderMarkdown(readmeContent);
-      setTimeout(() => {
+      if (container) {
+        const allElements = container.querySelectorAll('[data-badge-processed]');
+        allElements.forEach((el) => el.removeAttribute('data-badge-processed'));
+      }
+      tick().then(() => {
         renderMermaid();
         renderMath();
-      }, 100);
+        wrapBadgeParagraphs();
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          wrapBadgeParagraphs();
+        }, 100);
+      });
+    }
+  });
+
+  $effect(() => {
+    if (container && open) {
+      let mutationTimer: ReturnType<typeof setTimeout> | null = null;
+      
+      const observer = new MutationObserver(() => {
+        if (mutationTimer) clearTimeout(mutationTimer);
+        mutationTimer = setTimeout(() => {
+          wrapBadgeParagraphs();
+        }, 50);
+      });
+      
+      observer.observe(container, {
+        childList: true,
+        subtree: true
+      });
+      
+      wrapBadgeParagraphs();
+      
+      return () => {
+        if (mutationTimer) clearTimeout(mutationTimer);
+        observer.disconnect();
+      };
     }
   });
 
@@ -214,7 +396,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/90 p-4"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/90 p-4 cursor-default"
     role="button"
     tabindex="0"
     onclick={() => open = false}
@@ -228,7 +410,7 @@
       <CardContent class="overflow-y-auto flex-1 px-8 py-6 bg-gray-800">
         <div
           bind:this={container}
-          class="readme-content"
+          class="readme-content cursor-default"
         >
           {@html renderedHtml}
         </div>
@@ -263,8 +445,29 @@
   :global(.readme-content p) {
     @apply mb-4 text-gray-300 leading-relaxed;
   }
+  :global(.readme-content p[align="center"]) {
+    text-align: center !important;
+    display: block !important;
+  }
+  :global(.readme-content p[align="center"] img) {
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  :global(.readme-content p[align="center"] a) {
+    display: inline-block !important;
+  }
+  :global(.readme-content center p) {
+    margin-bottom: 0 !important;
+  }
   :global(.readme-content a) {
-    @apply text-gray-200 underline hover:text-gray-100;
+    @apply text-gray-200 underline hover:text-gray-100 cursor-pointer;
+    display: inline-block;
+  }
+  :global(.readme-content a img) {
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0;
   }
   :global(.readme-content strong) {
     @apply font-semibold text-gray-100;
@@ -303,7 +506,17 @@
     @apply bg-transparent border-0 p-0;
   }
   :global(.readme-content img) {
-    @apply max-w-full h-auto my-4 rounded border border-gray-600;
+    @apply rounded;
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0;
+    max-width: 100%;
+    height: auto;
+  }
+  :global(.readme-content p img) {
+    margin: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
   }
   :global(.readme-content blockquote) {
     @apply border-l-4 border-gray-500 pl-4 my-4 italic text-gray-400;
@@ -322,6 +535,63 @@
   }
   :global(.readme-content .mermaid) {
     @apply my-6 flex justify-center;
+  }
+  :global(.readme-content p:has(> a > img:only-child)) {
+    display: inline-block;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    vertical-align: middle;
+  }
+  :global(.readme-content p:has(> img:only-child)) {
+    display: inline-block;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    vertical-align: middle;
+  }
+  :global(.readme-content center) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+    margin-bottom: 1rem !important;
+    flex-direction: row !important;
+    width: 100% !important;
+  }
+  :global(.readme-content center p),
+  :global(.readme-content center > p) {
+    margin: 0 !important;
+    margin-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    flex-basis: auto !important;
+  }
+  :global(.readme-content center > *) {
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  :global(.readme-content center img) {
+    display: block !important;
+  }
+  :global(.readme-content center a) {
+    display: inline-block !important;
+  }
+  :global(.readme-content p:has(img:nth-of-type(2))) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+    align-items: center !important;
+    flex-direction: row !important;
+  }
+  :global(.readme-content p:has(img:nth-of-type(2)) > *) {
+    margin: 0 !important;
+    flex-shrink: 0 !important;
   }
 </style>
 
