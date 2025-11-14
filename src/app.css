@@ -1,0 +1,29 @@
+@import 'highlight.js/styles/github-dark.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-gray-600;
+  }
+  body {
+    @apply text-gray-200 font-sans;
+    background-color: #1f2937;
+    letter-spacing: -0.04em;
+  }
+  h1 {
+    @apply font-serif;
+    letter-spacing: -0.04em;
+  }
+  h2, h3, h4, h5, h6 {
+    @apply font-sans;
+    letter-spacing: -0.04em;
+  }
+  code, pre {
+    @apply font-mono;
+  }
+}
+
+
