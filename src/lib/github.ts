@@ -30,16 +30,47 @@ export interface RepoInfo {
 }
 
 export async function fetchRepoInfo(owner: string, repo: string): Promise<RepoInfo> {
-  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+  const headers: HeadersInit = {
+    'Accept': 'application/vnd.github.v3+json'
+  };
   
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Repository not found');
+  // Add GitHub token if available (from environment variable)
+  if (typeof window !== 'undefined') {
+    // Client-side: use API route
+    const response = await fetch(`/api/github/repos/${owner}/${repo}`);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Repository not found');
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Failed to fetch repository: ${response.statusText}`);
     }
-    throw new Error(`Failed to fetch repository: ${response.statusText}`);
-  }
 
-  const repoData: GitHubRepo = await response.json();
+    const repoData: GitHubRepo = await response.json();
+    return calculateRepoInfo(repoData);
+  } else {
+    // Server-side: use token directly
+    const token = process.env.GITHUB_TOKEN;
+    if (token) {
+      headers['Authorization'] = `token ${token}`;
+    }
+    
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Repository not found');
+      }
+      throw new Error(`Failed to fetch repository: ${response.statusText}`);
+    }
+
+    const repoData: GitHubRepo = await response.json();
+    return calculateRepoInfo(repoData);
+  }
+}
+
+function calculateRepoInfo(repoData: GitHubRepo): RepoInfo {
   
   const createdAt = new Date(repoData.created_at);
   const now = new Date();
@@ -95,18 +126,34 @@ export function parseRepoInput(input: string): { owner: string; repo: string } |
 
 export async function fetchReadme(owner: string, repo: string): Promise<string | null> {
   try {
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/readme`,
-      {
-        headers: {
-          Accept: 'application/vnd.github.v3.raw'
-        }
+    if (typeof window !== 'undefined') {
+      // Client-side: use API route
+      const response = await fetch(`/api/github/repos/${owner}/${repo}/readme`);
+      
+      if (response.ok) {
+        const text = await response.text();
+        return text;
       }
-    );
-    
-    if (response.ok) {
-      const text = await response.text();
-      return text;
+    } else {
+      // Server-side: use token directly
+      const headers: HeadersInit = {
+        Accept: 'application/vnd.github.v3.raw'
+      };
+      
+      const token = process.env.GITHUB_TOKEN;
+      if (token) {
+        headers['Authorization'] = `token ${token}`;
+      }
+      
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/readme`,
+        { headers }
+      );
+      
+      if (response.ok) {
+        const text = await response.text();
+        return text;
+      }
     }
   } catch (e) {
     console.error('Failed to fetch README:', e);

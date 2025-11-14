@@ -133,7 +133,29 @@
       FORBID_ATTR: []
     });
 
-    return sanitized;
+    // Decode HTML entities - DOMPurify encodes them, so we need to decode
+    // Decode numeric entities first (like &#39; for apostrophe)
+    let decoded = sanitized.replace(/&#(\d+);/g, (match, dec) => {
+      return String.fromCharCode(parseInt(dec, 10));
+    });
+    
+    // Decode hex entities
+    decoded = decoded.replace(/&#x([a-f\d]+);/gi, (match, hex) => {
+      return String.fromCharCode(parseInt(hex, 16));
+    });
+    
+    // Decode named entities (but preserve &amp; in attributes, decode it in text)
+    decoded = decoded.replace(/&apos;/g, "'");
+    decoded = decoded.replace(/&quot;/g, '"');
+    decoded = decoded.replace(/&lt;/g, '<');
+    decoded = decoded.replace(/&gt;/g, '>');
+    decoded = decoded.replace(/&nbsp;/g, ' ');
+    
+    // Decode &amp; but be careful - only decode standalone &amp; not &amp;lt; etc
+    // Replace &amp; that's not part of another entity
+    decoded = decoded.replace(/&amp;(?![a-z0-9#]+;)/gi, '&');
+
+    return decoded;
   }
 
   function renderMermaid() {
